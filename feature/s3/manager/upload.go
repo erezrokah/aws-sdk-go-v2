@@ -458,6 +458,14 @@ func (u *uploader) nextReader() (io.ReadSeeker, int, func(), error) {
 		return reader, int(n), cleanup, err
 
 	default:
+		if u.cfg.Concurrency == 1 {
+			part, err := io.ReadAll(r)
+			if err != nil {
+				return nil, 0, func() {}, err
+			}
+			u.readerPos += int64(len(part))
+			return bytes.NewReader(part), len(part), func() {}, io.EOF
+		}
 		part, err := u.cfg.partPool.Get(u.ctx)
 		if err != nil {
 			return nil, 0, func() {}, err
