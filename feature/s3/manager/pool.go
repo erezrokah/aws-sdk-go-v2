@@ -214,8 +214,8 @@ func (p *maxSlicePool) empty() {
 
 	if p.slices != nil {
 		close(p.slices)
-		for range p.slices {
-			// drain channel
+		for bs := range p.slices {
+			clear(*bs)
 		}
 		p.slices = nil
 	}
