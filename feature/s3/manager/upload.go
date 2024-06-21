@@ -466,8 +466,14 @@ func (u *uploader) nextReader() (io.ReadSeeker, int, func(), error) {
 		n, err := readFillBuf(r, *part)
 		u.readerPos += int64(n)
 
-		cleanup := func() {
-			u.cfg.partPool.Put(part)
+		var cleanup func()
+		// If this is a single part we don't utilize the part pool, so no need to hold onto the buffer.
+		if err == io.EOF {
+			cleanup = func() {}
+		} else {
+			cleanup = func() {
+				u.cfg.partPool.Put(part)
+			}
 		}
 
 		return bytes.NewReader((*part)[0:n]), n, cleanup, err
