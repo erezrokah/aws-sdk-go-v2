@@ -458,6 +458,24 @@ func (u *uploader) nextReader() (io.ReadSeeker, int, func(), error) {
 		return reader, int(n), cleanup, err
 
 	default:
+		if u.readerPos == 0 {
+			// read first part up to a maximum of PartSize to avoid allocating 5MB buffer out of the gate
+			r := io.LimitReader(u.in.Body, u.cfg.PartSize)
+			firstPart, err := io.ReadAll(r)
+			if err != nil {
+				return nil, 0, func() {}, err
+			}
+			bytesRead := len(firstPart)
+			u.readerPos += int64(bytesRead)
+			if u.readerPos < u.cfg.PartSize {
+				// Need to signal to the caller we're done reading via io.EOF
+				return bytes.NewReader(firstPart), bytesRead, func() {}, io.EOF
+			}
+			cleanup := func() {
+				u.cfg.partPool.Put(&firstPart)
+			}
+			return bytes.NewReader(firstPart), bytesRead, cleanup, nil
+		}
 		part, err := u.cfg.partPool.Get(u.ctx)
 		if err != nil {
 			return nil, 0, func() {}, err
